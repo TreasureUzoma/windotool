@@ -14,7 +14,6 @@ Perfect for:
 - Automated testing and debugging
 - Streamlining repetitive workflows
 - Building custom hotkeys or triggers
-- Having a little chaotic fun on Windows 😈
 
 ### Key Features
 
@@ -32,13 +31,15 @@ Perfect for:
 - Direct Win32 API interop for maximum performance and control
 - Memory-safe, modern systems language
 - Fun to build and hack on
-- Im currently expploring the language
+- I'm currently exploring the language
 
 windotool is still early-stage. Built for speed, simplicity, and a touch of mischief.
 
 Roadmap
 
 This are the commands this project aims to ship at v1.
+
+```cmd
 windotool app list
 windotool app open "Discord"
 windotool app close "Notepad"
@@ -52,3 +53,4 @@ windotool text "Hello world"
 
 windotool mouse move 500 300 // done
 windotool mouse click left // done
+```
