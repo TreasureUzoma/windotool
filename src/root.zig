@@ -1,23 +1,24 @@
-//! By convention, root.zig is the root source file when making a library.
+// This is the root module file for windotool
+// It re-exports the public API for use as a library
+
 const std = @import("std");
 
-pub fn bufferedPrint() !void {
-    // Stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    const stdout = &stdout_writer.interface;
+// Export command modules
+pub const app = @import("commands/app.zig");
+pub const window = @import("commands/window.zig");
+pub const mouse = @import("commands/mouse.zig");
+pub const keyboard = @import("commands/keyboard.zig");
+pub const screenshot = @import("commands/screenshot.zig");
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+// Export utilities
+pub const windows = @import("utils/windows.zig");
+pub const errors = @import("utils/errors.zig");
 
-    try stdout.flush(); // Don't forget to flush!
-}
+// Export main command dispatcher
+pub const executeCommand = @import("utils.zig").executeCommand;
+pub const executeBatch = @import("utils.zig").executeBatch;
+pub const tokenizeLine = @import("utils.zig").tokenizeLine;
 
-pub fn add(a: i32, b: i32) i32 {
-    return a + b;
-}
-
-test "basic add functionality" {
-    try std.testing.expect(add(3, 7) == 10);
+test "windotool module" {
+    @import("std").testing.refAllDecls(@This());
 }

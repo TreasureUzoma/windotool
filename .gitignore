@@ -1,0 +1,50 @@
+# Zig build artifacts
+zig-out/
+zig-cache/
+.zig-cache/
+
+# Build outputs
+*.exe
+*.pdb
+*.obj
+*.o
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# OS files
+Thumbs.db
+desktop.ini
+
+# Test outputs
+test-results/
+coverage/
+
+# Screenshots (from testing the screenshot command)
+screenshot_*.png
+screenshot_*.jpg
+screenshot_*.jpeg
+screenshot_*.bmp
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Local configuration
+.env
+.env.local
+config.local.*
+
+# Debug files
+*.dmp
