@@ -41,7 +41,7 @@ This are the commands this project aims to ship at v1.
 
 ```cmd
 windotool app list
-windotool app open "Discord"
+windotool app open "Discord" // done
 windotool app close "Notepad"
 
 windotool window list
