@@ -167,6 +167,88 @@ pub fn scrollWindow(allocator: std.mem.Allocator, title_query: []const u8, delta
     std.debug.print("Scrolled window \"{s}\" by {d}\n", .{ title_name, delta });
 }
 
+pub fn minimizeWindow(allocator: std.mem.Allocator, title_query: []const u8) !void {
+    var context = FindWindowContext{
+        .allocator = allocator,
+        .query = title_query,
+    };
+    _ = win.EnumWindows(findWindowCallback, @bitCast(@intFromPtr(&context)));
+    defer if (context.found_title) |t| allocator.free(t);
+
+    const hwnd = context.found_hwnd orelse {
+        std.debug.print("No window found matching title: \"{s}\"\n", .{title_query});
+        return error.WindowNotFound;
+    };
+
+    _ = win.ShowWindow(hwnd, win.SW_MINIMIZE);
+    const title_name = context.found_title orelse title_query;
+    std.debug.print("Minimized window \"{s}\"\n", .{title_name});
+}
+
+pub fn maximizeWindow(allocator: std.mem.Allocator, title_query: []const u8) !void {
+    var context = FindWindowContext{
+        .allocator = allocator,
+        .query = title_query,
+    };
+    _ = win.EnumWindows(findWindowCallback, @bitCast(@intFromPtr(&context)));
+    defer if (context.found_title) |t| allocator.free(t);
+
+    const hwnd = context.found_hwnd orelse {
+        std.debug.print("No window found matching title: \"{s}\"\n", .{title_query});
+        return error.WindowNotFound;
+    };
+
+    _ = win.ShowWindow(hwnd, win.SW_MAXIMIZE);
+    const title_name = context.found_title orelse title_query;
+    std.debug.print("Maximized window \"{s}\"\n", .{title_name});
+}
+
+pub fn restoreWindow(allocator: std.mem.Allocator, title_query: []const u8) !void {
+    var context = FindWindowContext{
+        .allocator = allocator,
+        .query = title_query,
+    };
+    _ = win.EnumWindows(findWindowCallback, @bitCast(@intFromPtr(&context)));
+    defer if (context.found_title) |t| allocator.free(t);
+
+    const hwnd = context.found_hwnd orelse {
+        std.debug.print("No window found matching title: \"{s}\"\n", .{title_query});
+        return error.WindowNotFound;
+    };
+
+    _ = win.ShowWindow(hwnd, win.SW_RESTORE);
+    const title_name = context.found_title orelse title_query;
+    std.debug.print("Restored window \"{s}\"\n", .{title_name});
+}
+
+pub fn getActiveWindow(allocator: std.mem.Allocator) !void {
+    const hwnd = win.GetForegroundWindow() orelse {
+        std.debug.print("No active window found\n", .{});
+        return error.NoActiveWindow;
+    };
+
+    var buffer: [512]u16 = undefined;
+    const length = win.GetWindowTextW(hwnd, &buffer, buffer.len);
+
+    const title = if (length > 0)
+        try std.unicode.utf16LeToUtf8Alloc(allocator, buffer[0..@intCast(length)])
+    else
+        try allocator.dupe(u8, "(no title)");
+    defer allocator.free(title);
+
+    var rect: win.RECT = undefined;
+    if (win.GetWindowRect(hwnd, &rect) == 0) return error.GetWindowRectFailed;
+
+    const width = rect.right - rect.left;
+    const height = rect.bottom - rect.top;
+
+    std.debug.print("Active Window:\n", .{});
+    std.debug.print("  Title:    {s}\n", .{title});
+    std.debug.print("  Handle:   0x{X:0>8}\n", .{@intFromPtr(hwnd)});
+    std.debug.print("  Position: x={d}, y={d}\n", .{ rect.left, rect.top });
+    std.debug.print("  Size:     w={d}, h={d}\n", .{ width, height });
+}
+
 // ─── Helper Contexts and Callbacks
 
 const WindowListContext = struct {

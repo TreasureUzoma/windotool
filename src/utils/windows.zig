@@ -96,12 +96,22 @@ pub extern "user32" fn OpenClipboard(hWndNewOwner: ?*anyopaque) callconv(.winapi
 pub extern "user32" fn CloseClipboard() callconv(.winapi) i32;
 pub extern "user32" fn EmptyClipboard() callconv(.winapi) i32;
 pub extern "user32" fn SetClipboardData(uFormat: u32, hMem: ?*anyopaque) callconv(.winapi) ?*anyopaque;
+pub extern "user32" fn GetClipboardData(uFormat: u32) callconv(.winapi) ?*anyopaque;
+pub extern "user32" fn GetForegroundWindow() callconv(.winapi) ?*anyopaque;
+pub extern "user32" fn FindWindowW(lpClassName: ?[*:0]const u16, lpWindowName: ?[*:0]const u16) callconv(.winapi) ?*anyopaque;
 
 pub extern "user32" fn SendInput(
     cInputs: u32,
     pInputs: [*]INPUT,
     cbSize: i32,
 ) callconv(.winapi) u32;
+
+// ─── Kernel32 Memory Functions ──────────────────────────────────────────
+
+pub extern "kernel32" fn GlobalAlloc(uFlags: u32, dwBytes: usize) callconv(.winapi) ?*anyopaque;
+pub extern "kernel32" fn GlobalLock(hMem: ?*anyopaque) callconv(.winapi) ?*anyopaque;
+pub extern "kernel32" fn GlobalUnlock(hMem: ?*anyopaque) callconv(.winapi) i32;
+pub extern "kernel32" fn GlobalFree(hMem: ?*anyopaque) callconv(.winapi) ?*anyopaque;
 
 //  GDI32
 
@@ -121,6 +131,7 @@ pub extern "gdi32" fn BitBlt(
 ) callconv(.winapi) i32;
 pub extern "gdi32" fn DeleteObject(ho: ?*anyopaque) callconv(.winapi) i32;
 pub extern "gdi32" fn DeleteDC(hdc: ?*anyopaque) callconv(.winapi) i32;
+pub extern "gdi32" fn GetPixel(hdc: ?*anyopaque, x: i32, y: i32) callconv(.winapi) u32;
 
 //  GDI+
 
@@ -179,11 +190,16 @@ pub const SRCCOPY: u32 = 0x00CC0020;
 pub const SM_CXSCREEN: i32 = 0;
 pub const SM_CYSCREEN: i32 = 1;
 pub const CF_BITMAP: u32 = 2;
+pub const CF_UNICODETEXT: u32 = 13;
 pub const SW_RESTORE: i32 = 9;
 pub const SW_SHOW: i32 = 5;
+pub const SW_MINIMIZE: i32 = 6;
+pub const SW_MAXIMIZE: i32 = 3;
 
 pub const INPUT_KEYBOARD: u32 = 1;
 pub const KEYEVENTF_KEYUP: u32 = 0x0002;
+
+pub const GMEM_MOVEABLE: u32 = 0x0002;
 
 // Virtual key codes
 pub const VK_BACK: u16 = 0x08;

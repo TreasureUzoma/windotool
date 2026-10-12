@@ -99,9 +99,13 @@ pub fn printHelp() void {
         \\Available Commands:
         \\  mouse       Control mouse movement, clicks, and scrolling
         \\  keyboard    Simulate keyboard input and key combinations
-        \\  window      Manage windows (list, focus, move, resize)
+        \\  window      Manage windows (list, focus, move, resize, minimize, maximize)
         \\  app         Launch, close, and list applications
         \\  screenshot  Capture screenshots to file or clipboard
+        \\  text        Type text into active window
+        \\  clipboard   Get, set, or clear clipboard content
+        \\  file        File operations (read, write, list, copy, move, etc.)
+        \\  system      System information and utilities
         \\  sleep       Pause execution for specified milliseconds
         \\  key         Send key combinations (alias for keyboard)
         \\  batch       Execute batch commands from JSON file
@@ -146,7 +150,7 @@ pub fn printWindowHelp() void {
     std.debug.print(
         \\Usage: windotool window <action> [arguments]
         \\
-        \\Manage windows (list, focus, move, resize).
+        \\Manage windows (list, focus, move, resize, minimize, maximize).
         \\
         \\Available Actions:
         \\  list                                List all visible windows
@@ -154,6 +158,10 @@ pub fn printWindowHelp() void {
         \\  move --title <query> [options]     Move/resize window
         \\  info --title <query>               Get detailed window information
         \\  scroll --title <query> <delta>     Scroll window content
+        \\  minimize --title <query>           Minimize window
+        \\  maximize --title <query>           Maximize window
+        \\  restore --title <query>            Restore minimized/maximized window
+        \\  active                             Get title of active window
         \\
         \\Move Options:
         \\  --x <x>        Set window X position
@@ -167,6 +175,10 @@ pub fn printWindowHelp() void {
         \\  windotool window move --title "Notepad" --x 100 --y 100 --w 800 --h 600
         \\  windotool window info --title "Chrome"
         \\  windotool window scroll --title "Chrome" 120
+        \\  windotool window minimize --title "Chrome"
+        \\  windotool window maximize --title "Notepad"
+        \\  windotool window restore --title "Chrome"
+        \\  windotool window active
         \\
     , .{});
 }
@@ -234,6 +246,112 @@ pub fn printKeyHelp() void {
         \\  windotool key alt+f4
         \\  windotool key ctrl+shift+esc
         \\  windotool key win+r
+        \\
+    , .{});
+}
+
+pub fn printTextHelp() void {
+    std.debug.print(
+        \\Usage: windotool text <action> [arguments]
+        \\
+        \\Type text into the active window.
+        \\
+        \\Available Actions:
+        \\  type <text>    Type the specified text character by character
+        \\
+        \\Examples:
+        \\  windotool text type "Hello, World!"
+        \\  windotool text type "user@example.com"
+        \\
+        \\Note: The text will be typed into the currently active/focused window.
+        \\      Use special characters and spaces normally.
+        \\
+    , .{});
+}
+
+pub fn printClipboardHelp() void {
+    std.debug.print(
+        \\Usage: windotool clipboard <action> [arguments]
+        \\
+        \\Get, set, or clear clipboard content.
+        \\
+        \\Available Actions:
+        \\  get              Get current clipboard text content
+        \\  set <text>       Set clipboard to specified text
+        \\  clear            Clear clipboard content
+        \\
+        \\Examples:
+        \\  windotool clipboard get
+        \\  windotool clipboard set "Hello, World!"
+        \\  windotool clipboard clear
+        \\
+        \\Alias: 'clip' can be used instead of 'clipboard'
+        \\  windotool clip get
+        \\  windotool clip set "Copy this"
+        \\
+    , .{});
+}
+
+pub fn printFileHelp() void {
+    std.debug.print(
+        \\Usage: windotool file <action> [arguments]
+        \\
+        \\File operations for reading, writing, and managing files.
+        \\
+        \\Available Actions:
+        \\  read <path>                  Read file contents
+        \\  write <path> <content>       Write content to file (overwrites)
+        \\  append <path> <content>      Append content to file
+        \\  exists <path>                Check if file/directory exists
+        \\  delete <path>                Delete file or directory
+        \\  size <path>                  Get file size in bytes
+        \\  list <directory>             List files in directory
+        \\  mkdir <path>                 Create directory
+        \\  copy <source> <destination>  Copy file
+        \\  move <source> <destination>  Move/rename file
+        \\
+        \\Examples:
+        \\  windotool file read "C:\\data.txt"
+        \\  windotool file write "C:\\output.txt" "Hello, World!"
+        \\  windotool file append "C:\\log.txt" "New log entry"
+        \\  windotool file exists "C:\\temp"
+        \\  windotool file delete "C:\\old.txt"
+        \\  windotool file size "C:\\document.pdf"
+        \\  windotool file list "C:\\Users"
+        \\  windotool file mkdir "C:\\new_folder"
+        \\  windotool file copy "C:\\source.txt" "C:\\backup.txt"
+        \\  windotool file move "C:\\old_name.txt" "C:\\new_name.txt"
+        \\
+    , .{});
+}
+
+pub fn printSystemHelp() void {
+    std.debug.print(
+        \\Usage: windotool system <action> [arguments]
+        \\
+        \\System information and utilities.
+        \\
+        \\Available Actions:
+        \\  screen                     Get screen width and height
+        \\  active                     Get active window title
+        \\  pixel <x> <y>              Get pixel color at coordinates (RGB hex)
+        \\  wait <milliseconds>        Wait/sleep for specified duration
+        \\  time                       Get current system time
+        \\  process <name>             Check if process is running
+        \\  env <variable>             Get environment variable value
+        \\
+        \\Examples:
+        \\  windotool system screen
+        \\  windotool system active
+        \\  windotool system pixel 100 200
+        \\  windotool system wait 1000
+        \\  windotool system time
+        \\  windotool system process "chrome.exe"
+        \\  windotool system env "PATH"
+        \\
+        \\Alias: 'sys' can be used instead of 'system'
+        \\  windotool sys screen
+        \\  windotool sys time
         \\
     , .{});
 }

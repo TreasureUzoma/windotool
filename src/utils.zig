@@ -6,11 +6,18 @@ const window_cmd = @import("commands/window.zig");
 const mouse_cmd = @import("commands/mouse.zig");
 const keyboard_cmd = @import("commands/keyboard.zig");
 const screenshot_cmd = @import("commands/screenshot.zig");
+const text_cmd = @import("commands/text.zig");
+const clipboard_cmd = @import("commands/clipboard.zig");
+const file_cmd = @import("commands/file.zig");
+const system_cmd = @import("commands/system.zig");
 
-const VALID_COMMANDS = [_][]const u8{ "mouse", "window", "app", "screenshot", "sleep", "key", "keyboard", "batch", "json", "run", "help", "--help", "-h", "version", "--version", "-v" };
+const VALID_COMMANDS = [_][]const u8{ "mouse", "window", "app", "screenshot", "sleep", "key", "keyboard", "batch", "json", "run", "text", "type", "clipboard", "clip", "file", "system", "help", "--help", "-h", "version", "--version", "-v" };
 const MOUSE_ACTIONS = [_][]const u8{ "move", "click", "scroll", "pos", "getpos" };
-const WINDOW_ACTIONS = [_][]const u8{ "list", "focus", "move", "info", "scroll" };
+const WINDOW_ACTIONS = [_][]const u8{ "list", "focus", "move", "info", "scroll", "minimize", "maximize", "restore", "active" };
 const APP_ACTIONS = [_][]const u8{ "open", "close", "list" };
+const CLIPBOARD_ACTIONS = [_][]const u8{ "get", "set", "clear" };
+const FILE_ACTIONS = [_][]const u8{ "read", "write", "append", "exists", "delete", "size", "list", "mkdir", "copy", "move" };
+const SYSTEM_ACTIONS = [_][]const u8{ "screen", "active", "pixel", "wait", "time", "running", "env" };
 
 // Command Dispatcher and Batch Execution
 
@@ -138,6 +145,29 @@ fn executeJsonObject(allocator: std.mem.Allocator, obj: std.json.ObjectMap) anye
             };
             const delta = jsonGetInt(obj.get("delta") orelse return error.MissingDelta) orelse return error.InvalidDelta;
             try window_cmd.scrollWindow(allocator, title, delta);
+        } else if (std.mem.eql(u8, action, "minimize")) {
+            const title_val = obj.get("title") orelse return error.MissingWindowTitle;
+            const title = switch (title_val) {
+                .string => |s| s,
+                else => return error.InvalidWindowTitle,
+            };
+            try window_cmd.minimizeWindow(allocator, title);
+        } else if (std.mem.eql(u8, action, "maximize")) {
+            const title_val = obj.get("title") orelse return error.MissingWindowTitle;
+            const title = switch (title_val) {
+                .string => |s| s,
+                else => return error.InvalidWindowTitle,
+            };
+            try window_cmd.maximizeWindow(allocator, title);
+        } else if (std.mem.eql(u8, action, "restore")) {
+            const title_val = obj.get("title") orelse return error.MissingWindowTitle;
+            const title = switch (title_val) {
+                .string => |s| s,
+                else => return error.InvalidWindowTitle,
+            };
+            try window_cmd.restoreWindow(allocator, title);
+        } else if (std.mem.eql(u8, action, "active")) {
+            try window_cmd.getActiveWindow(allocator);
         }
     } else if (std.mem.eql(u8, cmd, "screenshot")) {
         var options = screenshot_cmd.ScreenshotOptions{};
@@ -179,6 +209,183 @@ fn executeJsonObject(allocator: std.mem.Allocator, obj: std.json.ObjectMap) anye
             } else {
                 try app_cmd.listInstalledApps(allocator);
             }
+        }
+    } else if (std.mem.eql(u8, cmd, "text") or std.mem.eql(u8, cmd, "type")) {
+        const action = if (obj.get("action")) |a| switch (a) {
+            .string => |s| s,
+            else => "type",
+        } else "type";
+        
+        if (std.mem.eql(u8, action, "type")) {
+            const text_val = obj.get("text") orelse obj.get("content") orelse return error.MissingText;
+            const text = switch (text_val) {
+                .string => |s| s,
+                else => return error.InvalidText,
+            };
+            try text_cmd.typeText(text);
+        }
+    } else if (std.mem.eql(u8, cmd, "clipboard") or std.mem.eql(u8, cmd, "clip")) {
+        const action = if (obj.get("action")) |a| switch (a) {
+            .string => |s| s,
+            else => "get",
+        } else "get";
+        
+        if (std.mem.eql(u8, action, "get")) {
+            const text = try clipboard_cmd.getText(allocator);
+            defer allocator.free(text);
+            std.debug.print("Clipboard: {s}\n", .{text});
+        } else if (std.mem.eql(u8, action, "set")) {
+            const text_val = obj.get("text") orelse obj.get("content") orelse return error.MissingText;
+            const text = switch (text_val) {
+                .string => |s| s,
+                else => return error.InvalidText,
+            };
+            try clipboard_cmd.setText(allocator, text);
+        } else if (std.mem.eql(u8, action, "clear")) {
+            try clipboard_cmd.clear();
+        }
+    } else if (std.mem.eql(u8, cmd, "file")) {
+        const action = if (obj.get("action")) |a| switch (a) {
+            .string => |s| s,
+            else => return error.MissingFileAction,
+        } else return error.MissingFileAction;
+        
+        if (std.mem.eql(u8, action, "read")) {
+            const path_val = obj.get("path") orelse return error.MissingPath;
+            const path = switch (path_val) {
+                .string => |s| s,
+                else => return error.InvalidPath,
+            };
+            const content = try file_cmd.readFile(allocator, path);
+            defer allocator.free(content);
+            std.debug.print("{s}\n", .{content});
+        } else if (std.mem.eql(u8, action, "write")) {
+            const path_val = obj.get("path") orelse return error.MissingPath;
+            const path = switch (path_val) {
+                .string => |s| s,
+                else => return error.InvalidPath,
+            };
+            const content_val = obj.get("content") orelse obj.get("text") orelse return error.MissingContent;
+            const content = switch (content_val) {
+                .string => |s| s,
+                else => return error.InvalidContent,
+            };
+            try file_cmd.writeFile(path, content);
+        } else if (std.mem.eql(u8, action, "append")) {
+            const path_val = obj.get("path") orelse return error.MissingPath;
+            const path = switch (path_val) {
+                .string => |s| s,
+                else => return error.InvalidPath,
+            };
+            const content_val = obj.get("content") orelse obj.get("text") orelse return error.MissingContent;
+            const content = switch (content_val) {
+                .string => |s| s,
+                else => return error.InvalidContent,
+            };
+            try file_cmd.appendFile(path, content);
+        } else if (std.mem.eql(u8, action, "exists")) {
+            const path_val = obj.get("path") orelse return error.MissingPath;
+            const path = switch (path_val) {
+                .string => |s| s,
+                else => return error.InvalidPath,
+            };
+            const file_exists = file_cmd.exists(path);
+            std.debug.print("Exists: {}\n", .{file_exists});
+        } else if (std.mem.eql(u8, action, "delete")) {
+            const path_val = obj.get("path") orelse return error.MissingPath;
+            const path = switch (path_val) {
+                .string => |s| s,
+                else => return error.InvalidPath,
+            };
+            try file_cmd.deleteFile(path);
+        } else if (std.mem.eql(u8, action, "size")) {
+            const path_val = obj.get("path") orelse return error.MissingPath;
+            const path = switch (path_val) {
+                .string => |s| s,
+                else => return error.InvalidPath,
+            };
+            const size = try file_cmd.getSize(path);
+            std.debug.print("Size: {d} bytes\n", .{size});
+        } else if (std.mem.eql(u8, action, "list")) {
+            const path_val = obj.get("path") orelse obj.get("directory") orelse return error.MissingPath;
+            const path = switch (path_val) {
+                .string => |s| s,
+                else => return error.InvalidPath,
+            };
+            try file_cmd.listDir(allocator, path);
+        } else if (std.mem.eql(u8, action, "mkdir")) {
+            const path_val = obj.get("path") orelse return error.MissingPath;
+            const path = switch (path_val) {
+                .string => |s| s,
+                else => return error.InvalidPath,
+            };
+            try file_cmd.makeDir(path);
+        } else if (std.mem.eql(u8, action, "copy")) {
+            const src_val = obj.get("source") orelse obj.get("src") orelse return error.MissingSource;
+            const source = switch (src_val) {
+                .string => |s| s,
+                else => return error.InvalidSource,
+            };
+            const dest_val = obj.get("destination") orelse obj.get("dest") orelse return error.MissingDestination;
+            const destination = switch (dest_val) {
+                .string => |s| s,
+                else => return error.InvalidDestination,
+            };
+            try file_cmd.copyFile(source, destination);
+        } else if (std.mem.eql(u8, action, "move")) {
+            const src_val = obj.get("source") orelse obj.get("src") orelse return error.MissingSource;
+            const source = switch (src_val) {
+                .string => |s| s,
+                else => return error.InvalidSource,
+            };
+            const dest_val = obj.get("destination") orelse obj.get("dest") orelse return error.MissingDestination;
+            const destination = switch (dest_val) {
+                .string => |s| s,
+                else => return error.InvalidDestination,
+            };
+            try file_cmd.moveFile(source, destination);
+        }
+    } else if (std.mem.eql(u8, cmd, "system") or std.mem.eql(u8, cmd, "sys")) {
+        const action = if (obj.get("action")) |a| switch (a) {
+            .string => |s| s,
+            else => return error.MissingSystemAction,
+        } else return error.MissingSystemAction;
+        
+        if (std.mem.eql(u8, action, "screen")) {
+            const size = try system_cmd.getScreenSize();
+            std.debug.print("Screen: {d}x{d}\n", .{ size.width, size.height });
+        } else if (std.mem.eql(u8, action, "active")) {
+            const title = try system_cmd.getActiveWindowTitle(allocator);
+            defer allocator.free(title);
+            std.debug.print("Active window: {s}\n", .{title});
+        } else if (std.mem.eql(u8, action, "pixel")) {
+            const x = jsonGetInt(obj.get("x") orelse return error.MissingCoordinate) orelse return error.InvalidCoordinate;
+            const y = jsonGetInt(obj.get("y") orelse return error.MissingCoordinate) orelse return error.InvalidCoordinate;
+            const color = try system_cmd.getPixelColor(x, y);
+            std.debug.print("Pixel at ({d},{d}): #{X:0>6}\n", .{ x, y, color });
+        } else if (std.mem.eql(u8, action, "wait")) {
+            const ms = jsonGetInt(obj.get("ms") orelse obj.get("milliseconds") orelse return error.MissingDuration) orelse return error.InvalidDuration;
+            system_cmd.wait(@intCast(ms));
+        } else if (std.mem.eql(u8, action, "time")) {
+            const time_info = try system_cmd.getSystemTime();
+            std.debug.print("Time: {d}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2}\n", .{ time_info.year, time_info.month, time_info.day, time_info.hour, time_info.minute, time_info.second });
+        } else if (std.mem.eql(u8, action, "process") or std.mem.eql(u8, action, "running")) {
+            const name_val = obj.get("name") orelse obj.get("process") orelse return error.MissingProcessName;
+            const name = switch (name_val) {
+                .string => |s| s,
+                else => return error.InvalidProcessName,
+            };
+            const running = try system_cmd.isProcessRunning(allocator, name);
+            std.debug.print("Process '{s}' running: {}\n", .{ name, running });
+        } else if (std.mem.eql(u8, action, "env")) {
+            const var_val = obj.get("variable") orelse obj.get("var") orelse obj.get("name") orelse return error.MissingVariable;
+            const variable = switch (var_val) {
+                .string => |s| s,
+                else => return error.InvalidVariable,
+            };
+            const value = try system_cmd.getEnvVar(allocator, variable);
+            defer allocator.free(value);
+            std.debug.print("{s}={s}\n", .{ variable, value });
         }
     } else {
         std.debug.print("Unknown command: {s}\n", .{cmd});
@@ -267,6 +474,14 @@ pub fn executeCommand(allocator: std.mem.Allocator, args: []const []const u8) an
                 cli.printScreenshotHelp();
             } else if (std.mem.eql(u8, cmd, "key") or std.mem.eql(u8, cmd, "keyboard")) {
                 cli.printKeyHelp();
+            } else if (std.mem.eql(u8, cmd, "text") or std.mem.eql(u8, cmd, "type")) {
+                cli.printTextHelp();
+            } else if (std.mem.eql(u8, cmd, "clipboard") or std.mem.eql(u8, cmd, "clip")) {
+                cli.printClipboardHelp();
+            } else if (std.mem.eql(u8, cmd, "file")) {
+                cli.printFileHelp();
+            } else if (std.mem.eql(u8, cmd, "system") or std.mem.eql(u8, cmd, "sys")) {
+                cli.printSystemHelp();
             } else {
                 try cli.printCommandError(allocator, cmd, &VALID_COMMANDS);
             }
@@ -513,8 +728,190 @@ pub fn executeCommand(allocator: std.mem.Allocator, args: []const []const u8) an
                 std.debug.print("Error: failed to scroll window: {any}\n", .{err});
                 return;
             };
+        } else if (std.mem.eql(u8, action, "minimize")) {
+            var title: ?[]const u8 = null;
+            var i: usize = 2;
+            while (i < args.len) : (i += 1) {
+                if (std.mem.eql(u8, args[i], "--title") or std.mem.eql(u8, args[i], "-t")) {
+                    i += 1;
+                    if (i < args.len) title = args[i];
+                } else if (!std.mem.startsWith(u8, args[i], "-") and title == null) {
+                    title = args[i];
+                }
+            }
+            const t = title orelse {
+                std.debug.print("Error: 'minimize' requires --title argument\n", .{});
+                return;
+            };
+            window_cmd.minimizeWindow(allocator, t) catch |err| {
+                std.debug.print("Error: failed to minimize window: {any}\n", .{err});
+                return;
+            };
+        } else if (std.mem.eql(u8, action, "maximize")) {
+            var title: ?[]const u8 = null;
+            var i: usize = 2;
+            while (i < args.len) : (i += 1) {
+                if (std.mem.eql(u8, args[i], "--title") or std.mem.eql(u8, args[i], "-t")) {
+                    i += 1;
+                    if (i < args.len) title = args[i];
+                } else if (!std.mem.startsWith(u8, args[i], "-") and title == null) {
+                    title = args[i];
+                }
+            }
+            const t = title orelse {
+                std.debug.print("Error: 'maximize' requires --title argument\n", .{});
+                return;
+            };
+            window_cmd.maximizeWindow(allocator, t) catch |err| {
+                std.debug.print("Error: failed to maximize window: {any}\n", .{err});
+                return;
+            };
+        } else if (std.mem.eql(u8, action, "restore")) {
+            var title: ?[]const u8 = null;
+            var i: usize = 2;
+            while (i < args.len) : (i += 1) {
+                if (std.mem.eql(u8, args[i], "--title") or std.mem.eql(u8, args[i], "-t")) {
+                    i += 1;
+                    if (i < args.len) title = args[i];
+                } else if (!std.mem.startsWith(u8, args[i], "-") and title == null) {
+                    title = args[i];
+                }
+            }
+            const t = title orelse {
+                std.debug.print("Error: 'restore' requires --title argument\n", .{});
+                return;
+            };
+            window_cmd.restoreWindow(allocator, t) catch |err| {
+                std.debug.print("Error: failed to restore window: {any}\n", .{err});
+                return;
+            };
+        } else if (std.mem.eql(u8, action, "active")) {
+            window_cmd.getActiveWindow(allocator) catch |err| {
+                std.debug.print("Error: failed to get active window: {any}\n", .{err});
+                return;
+            };
         } else {
             try cli.printActionError(allocator, "window", action, &WINDOW_ACTIONS);
+        }
+    } else if (std.mem.eql(u8, group, "text") or std.mem.eql(u8, group, "type")) {
+        if (args.len < 2) {
+            std.debug.print("Error: 'text' requires text to type\n", .{});
+            std.debug.print("Usage: windotool text <text-to-type>\n", .{});
+            return;
+        }
+        const text = try std.mem.join(allocator, " ", args[1..]);
+        defer allocator.free(text);
+        text_cmd.typeText(text) catch |err| {
+            std.debug.print("Error: failed to type text: {any}\n", .{err});
+            return;
+        };
+    } else if (std.mem.eql(u8, group, "clipboard") or std.mem.eql(u8, group, "clip")) {
+        if (args.len < 2) {
+            std.debug.print("Usage: windotool clipboard <get|set|clear>\n", .{});
+            return;
+        }
+        const action = args[1];
+        if (std.mem.eql(u8, action, "get")) {
+            const text = clipboard_cmd.getText(allocator) catch |err| {
+                std.debug.print("Error: failed to get clipboard: {any}\n", .{err});
+                return;
+            };
+            defer allocator.free(text);
+            std.debug.print("{s}\n", .{text});
+        } else if (std.mem.eql(u8, action, "set")) {
+            if (args.len < 3) {
+                std.debug.print("Error: 'set' requires text argument\n", .{});
+                return;
+            }
+            const text = try std.mem.join(allocator, " ", args[2..]);
+            defer allocator.free(text);
+            clipboard_cmd.setText(allocator, text) catch |err| {
+                std.debug.print("Error: failed to set clipboard: {any}\n", .{err});
+                return;
+            };
+            std.debug.print("Clipboard set\n", .{});
+        } else if (std.mem.eql(u8, action, "clear")) {
+            clipboard_cmd.clear() catch |err| {
+                std.debug.print("Error: failed to clear clipboard: {any}\n", .{err});
+                return;
+            };
+            std.debug.print("Clipboard cleared\n", .{});
+        } else {
+            try cli.printActionError(allocator, "clipboard", action, &CLIPBOARD_ACTIONS);
+        }
+    } else if (std.mem.eql(u8, group, "file")) {
+        if (args.len < 2) {
+            std.debug.print("Usage: windotool file <action> [args]\n", .{});
+            return;
+        }
+        const action = args[1];
+        if (std.mem.eql(u8, action, "read")) {
+            if (args.len < 3) {
+                std.debug.print("Usage: windotool file read <path>\n", .{});
+                return;
+            }
+            const content = file_cmd.readFile(allocator, args[2]) catch |err| {
+                std.debug.print("Error: {any}\n", .{err});
+                return;
+            };
+            defer allocator.free(content);
+            std.debug.print("{s}", .{content});
+        } else if (std.mem.eql(u8, action, "write")) {
+            if (args.len < 4) {
+                std.debug.print("Usage: windotool file write <path> <content>\n", .{});
+                return;
+            }
+            const content = try std.mem.join(allocator, " ", args[3..]);
+            defer allocator.free(content);
+            file_cmd.writeFile(args[2], content) catch |err| {
+                std.debug.print("Error: {any}\n", .{err});
+                return;
+            };
+            std.debug.print("File written: {s}\n", .{args[2]});
+        } else if (std.mem.eql(u8, action, "exists")) {
+            if (args.len < 3) {
+                std.debug.print("Usage: windotool file exists <path>\n", .{});
+                return;
+            }
+            std.debug.print("{s}\n", .{if (file_cmd.exists(args[2])) "true" else "false"});
+        } else if (std.mem.eql(u8, action, "list")) {
+            const path = if (args.len >= 3) args[2] else ".";
+            file_cmd.listDir(allocator, path) catch |err| {
+                std.debug.print("Error: {any}\n", .{err});
+                return;
+            };
+        } else {
+            try cli.printActionError(allocator, "file", action, &FILE_ACTIONS);
+        }
+    } else if (std.mem.eql(u8, group, "system") or std.mem.eql(u8, group, "sys")) {
+        if (args.len < 2) {
+            std.debug.print("Usage: windotool system <screen|active|time>\n", .{});
+            return;
+        }
+        const action = args[1];
+        if (std.mem.eql(u8, action, "screen")) {
+            const size = system_cmd.getScreenSize() catch |err| {
+                std.debug.print("Error: {any}\n", .{err});
+                return;
+            };
+            std.debug.print("Screen: {d}x{d}\n", .{ size.width, size.height });
+        } else if (std.mem.eql(u8, action, "active")) {
+            const title = system_cmd.getActiveWindowTitle(allocator) catch |err| {
+                std.debug.print("Error: {any}\n", .{err});
+                return;
+            };
+            defer allocator.free(title);
+            std.debug.print("Active window: {s}\n", .{title});
+        } else if (std.mem.eql(u8, action, "time")) {
+            const time = system_cmd.getSystemTime() catch |err| {
+                std.debug.print("Error: {any}\n", .{err});
+                return;
+            };
+            std.debug.print("{d:0>4}-{d:0>2}-{d:0>2} {d:0>2}:{d:0>2}:{d:0>2}\n", .{
+                time.year, time.month, time.day, time.hour, time.minute, time.second,
+            });
+        } else {
+            try cli.printActionError(allocator, "system", action, &SYSTEM_ACTIONS);
         }
     } else if (std.mem.eql(u8, group, "sleep")) {
         if (args.len < 2) {

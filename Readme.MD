@@ -95,6 +95,8 @@ Test the installation:
 - List open windows.
 - Focus windows by title.
 - Move and resize windows.
+- Minimize, maximize, and restore windows.
+- Get active window title.
 - Get detailed window information (size, position, state).
 - Scroll window content.
 
@@ -103,11 +105,41 @@ Test the installation:
 - Move the cursor using screen coordinates.
 - Click left and right mouse buttons.
 - Support additional mouse actions such as double-clicking and scrolling.
+- Get current mouse position.
 
 **Keyboard and text input**
 
 - Simulate keyboard shortcuts and key combinations.
-- Type text into the active application.
+- Type text character-by-character into the active application.
+- Proper handling of uppercase, lowercase, and special characters.
+
+**Clipboard operations**
+
+- Get current clipboard text content.
+- Set clipboard to specified text.
+- Clear clipboard content.
+- Full Unicode support.
+
+**File operations**
+
+- Read and write files.
+- Append content to existing files.
+- Check file/directory existence.
+- Delete files and directories.
+- Get file size.
+- List directory contents.
+- Create directories.
+- Copy and move files.
+
+**System information**
+
+- Get screen resolution.
+- Get active window title.
+- Read pixel color at coordinates.
+- Check if processes are running.
+- Get environment variables.
+- Get current system time.
+- Wait/sleep for specified duration.
 
 **Screenshots**
 
@@ -138,7 +170,11 @@ src/
 │   ├── window.zig          # Window management
 │   ├── mouse.zig           # Mouse control
 │   ├── keyboard.zig        # Keyboard input
-│   └── screenshot.zig      # Screenshot capture
+│   ├── screenshot.zig      # Screenshot capture
+│   ├── text.zig            # Text typing
+│   ├── clipboard.zig       # Clipboard operations
+│   ├── file.zig            # File operations
+│   └── system.zig          # System information
 └── utils/
     ├── windows.zig         # Windows API declarations
     ├── errors.zig          # Error types
@@ -165,10 +201,15 @@ windotool window focus --title "Visual Studio Code"
 windotool window move --title "Chrome" --x 0 --y 0 --w 1200 --h 800
 windotool window info --title "Chrome"
 windotool window scroll --title "Chrome" 120
+windotool window minimize --title "Chrome"
+windotool window maximize --title "Notepad"
+windotool window restore --title "Chrome"
+windotool window active
 
 # Mouse control
 windotool mouse move 500 300
 windotool mouse click left
+windotool mouse click double
 windotool mouse scroll 120
 windotool mouse pos
 
@@ -176,6 +217,42 @@ windotool mouse pos
 windotool key ctrl+shift+p
 windotool key alt+f4
 windotool key win+r
+
+# Text typing
+windotool text type "Hello, World!"
+windotool text type "user@example.com"
+
+# Clipboard operations
+windotool clipboard get
+windotool clipboard set "Hello from windotool"
+windotool clipboard clear
+# Short aliases also work
+windotool clip get
+windotool clip set "Quick copy"
+
+# File operations
+windotool file read "C:\data.txt"
+windotool file write "C:\output.txt" "Hello, World!"
+windotool file append "C:\log.txt" "New log entry"
+windotool file exists "C:\temp"
+windotool file delete "C:\old.txt"
+windotool file size "C:\document.pdf"
+windotool file list "C:\Users"
+windotool file mkdir "C:\new_folder"
+windotool file copy "C:\source.txt" "C:\backup.txt"
+windotool file move "C:\old_name.txt" "C:\new_name.txt"
+
+# System information
+windotool system screen
+windotool system active
+windotool system pixel 100 200
+windotool system wait 1000
+windotool system time
+windotool system process "chrome.exe"
+windotool system env "PATH"
+# Short aliases also work
+windotool sys screen
+windotool sys time
 
 # Screenshots
 windotool screenshot
@@ -302,6 +379,143 @@ Execute the batch:
 windotool batch automation.json
 ```
 
+**Example: AI Agent Workflow with New Features**
+
+```json
+{
+  "actions": [
+    {
+      "command": "system",
+      "action": "screen",
+      "comment": "Get screen dimensions"
+    },
+    {
+      "command": "system",
+      "action": "active",
+      "comment": "Check active window"
+    },
+    {
+      "command": "clipboard",
+      "action": "set",
+      "text": "https://example.com",
+      "comment": "Copy URL to clipboard"
+    },
+    {
+      "command": "app",
+      "action": "open",
+      "name": "notepad"
+    },
+    {
+      "command": "sleep",
+      "ms": 1000
+    },
+    {
+      "command": "window",
+      "action": "maximize",
+      "title": "Notepad"
+    },
+    {
+      "command": "text",
+      "action": "type",
+      "text": "Hello from AI agent!"
+    },
+    {
+      "command": "sleep",
+      "ms": 500
+    },
+    {
+      "command": "key",
+      "combo": "enter"
+    },
+    {
+      "command": "key",
+      "combo": "ctrl+v",
+      "comment": "Paste URL from clipboard"
+    },
+    {
+      "command": "file",
+      "action": "write",
+      "path": "C:\\temp\\log.txt",
+      "content": "Automation completed successfully"
+    }
+  ]
+}
+```
+
+**Example: File Processing Automation**
+
+```json
+{
+  "actions": [
+    {
+      "command": "file",
+      "action": "exists",
+      "path": "C:\\data\\input.txt"
+    },
+    {
+      "command": "file",
+      "action": "read",
+      "path": "C:\\data\\input.txt"
+    },
+    {
+      "command": "clipboard",
+      "action": "get",
+      "comment": "Read clipboard content"
+    },
+    {
+      "command": "file",
+      "action": "write",
+      "path": "C:\\data\\output.txt",
+      "content": "Processed data"
+    },
+    {
+      "command": "file",
+      "action": "copy",
+      "source": "C:\\data\\output.txt",
+      "destination": "C:\\backup\\output.txt"
+    },
+    {
+      "command": "system",
+      "action": "time",
+      "comment": "Log completion time"
+    }
+  ]
+}
+```
+
+**Example: System Monitoring**
+
+```json
+{
+  "actions": [
+    {
+      "command": "system",
+      "action": "process",
+      "name": "chrome.exe",
+      "comment": "Check if Chrome is running"
+    },
+    {
+      "command": "system",
+      "action": "pixel",
+      "x": 100,
+      "y": 200,
+      "comment": "Sample pixel color"
+    },
+    {
+      "command": "window",
+      "action": "active",
+      "comment": "Get active window title"
+    },
+    {
+      "command": "file",
+      "action": "append",
+      "path": "C:\\logs\\monitor.log",
+      "content": "System check completed\n"
+    }
+  ]
+}
+```
+
 **More Examples:**
 
 ```json
@@ -342,11 +556,49 @@ windotool batch automation.json
 - **Portable distribution:** Designed to compile into a standalone Windows executable without requiring a separate runtime.
 - **Lightweight:** No heavyweight automation framework required. The optimized release binary is only ~343 KB.
 - **Extensible:** A modular foundation for adding more Windows automation capabilities.
+- **AI-ready:** Comprehensive command set designed for AI agents to control Windows PCs programmatically.
 
 **Binary Sizes:**
 
 - Debug build: ~1.35 MB (includes debug symbols)
 - Release (optimized): ~343 KB (single executable, no dependencies)
+
+### AI Agent Integration
+
+Windotool is designed as a comprehensive control interface for AI agents operating on Windows systems. With its JSON batch execution and extensive command set, AI agents can:
+
+**Complete System Control:**
+
+- Read and write files for data persistence
+- Monitor system state (processes, screen resolution, active windows)
+- Read pixel colors for visual verification
+- Check clipboard content and manipulate text
+
+**Application Automation:**
+
+- Launch and manage applications
+- Control window positions and states
+- Type text and simulate keyboard shortcuts
+- Perform mouse actions with precise coordinates
+
+**Workflow Orchestration:**
+
+- Chain multiple commands in JSON batches
+- Add delays and synchronization points
+- Handle errors gracefully with clear feedback
+- Execute complex multi-step automations
+
+**Example AI Agent Use Cases:**
+
+- Browser automation for web scraping and testing
+- Document processing and data entry
+- System monitoring and health checks
+- Automated software testing and quality assurance
+- File organization and batch processing
+- Screen capture and visual verification
+- Clipboard-based data transfer workflows
+
+The combination of file operations, system information commands, window management, and input simulation provides AI agents with everything needed for comprehensive Windows automation.
 
 ## Development
 
@@ -362,7 +614,11 @@ src/
 │   ├── window.zig          # Window management
 │   ├── mouse.zig           # Mouse control
 │   ├── keyboard.zig        # Keyboard simulation
-│   └── screenshot.zig      # Screenshot capture
+│   ├── screenshot.zig      # Screenshot capture
+│   ├── text.zig            # Text typing
+│   ├── clipboard.zig       # Clipboard operations
+│   ├── file.zig            # File operations
+│   └── system.zig          # System information
 └── utils/
     ├── windows.zig         # Windows API declarations
     ├── errors.zig          # Error types
@@ -419,7 +675,7 @@ pub fn doSomething(param: []const u8) !void {
 
 ### Project Status
 
-Windotool brings its core Windows automation commands together in one lightweight CLI. The project is also an opportunity to explore Zig, systems programming, and native Windows APIs through a practical, evolving tool.
+Windotool provides comprehensive Windows automation capabilities designed for both human users and AI agents. With support for window management, input simulation, file operations, clipboard manipulation, system information retrieval, and JSON batch execution, it offers a complete control interface for automating Windows tasks. The project demonstrates practical systems programming with Zig while delivering a lightweight, native, and extensible automation tool.
 
 ### License
 
