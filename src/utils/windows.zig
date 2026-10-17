@@ -271,3 +271,151 @@ pub const INPUT = extern struct {
         hi: HARDWAREINPUT,
     },
 };
+
+// Process and memory management
+pub const PROCESS_QUERY_INFORMATION = 0x0400;
+pub const PROCESS_VM_READ = 0x0010;
+pub const MAX_PATH = 260;
+
+pub const PROCESS_MEMORY_COUNTERS = extern struct {
+    cb: u32,
+    PageFaultCount: u32,
+    PeakWorkingSetSize: usize,
+    WorkingSetSize: usize,
+    QuotaPeakPagedPoolUsage: usize,
+    QuotaPagedPoolUsage: usize,
+    QuotaPeakNonPagedPoolUsage: usize,
+    QuotaNonPagedPoolUsage: usize,
+    PagefileUsage: usize,
+    PeakPagefileUsage: usize,
+};
+
+pub extern "kernel32" fn OpenProcess(
+    dwDesiredAccess: u32,
+    bInheritHandle: u32,
+    dwProcessId: u32,
+) callconv(.winapi) ?*anyopaque;
+
+pub extern "kernel32" fn CloseHandle(
+    hObject: ?*anyopaque,
+) callconv(.winapi) i32;
+
+pub extern "kernel32" fn QueryFullProcessImageNameA(
+    hProcess: ?*anyopaque,
+    dwFlags: u32,
+    lpExeName: [*]u8,
+    lpdwSize: *u32,
+) callconv(.winapi) i32;
+
+pub extern "psapi" fn GetProcessMemoryInfo(
+    Process: ?*anyopaque,
+    ppsmemCounters: *PROCESS_MEMORY_COUNTERS,
+    cb: u32,
+) callconv(.winapi) i32;
+
+// Window placement
+pub const WINDOWPLACEMENT = extern struct {
+    length: u32,
+    flags: u32,
+    showCmd: u32,
+    ptMinPosition: POINT,
+    ptMaxPosition: POINT,
+    rcNormalPosition: RECT,
+};
+
+pub extern "user32" fn GetWindowPlacement(
+    hWnd: HWND,
+    lpwndpl: *WINDOWPLACEMENT,
+) callconv(.winapi) i32;
+
+pub extern "user32" fn IsWindowEnabled(
+    hWnd: HWND,
+) callconv(.winapi) i32;
+
+pub extern "user32" fn GetClassNameA(
+    hWnd: HWND,
+    lpClassName: [*]u8,
+    nMaxCount: i32,
+) callconv(.winapi) i32;
+
+pub extern "user32" fn GetWindowThreadProcessId(
+    hWnd: HWND,
+    lpdwProcessId: *u32,
+) callconv(.winapi) u32;
+
+// GDI for pixel capture
+pub extern "gdi32" fn CreateCompatibleDC(
+    hdc: ?HDC,
+) callconv(.winapi) ?HDC;
+
+pub extern "gdi32" fn DeleteDC(
+    hdc: ?HDC,
+) callconv(.winapi) i32;
+
+pub extern "gdi32" fn CreateCompatibleBitmap(
+    hdc: ?HDC,
+    cx: i32,
+    cy: i32,
+) callconv(.winapi) ?*anyopaque;
+
+pub extern "gdi32" fn DeleteObject(
+    ho: ?*anyopaque,
+) callconv(.winapi) i32;
+
+pub extern "gdi32" fn SelectObject(
+    hdc: ?HDC,
+    h: ?*anyopaque,
+) callconv(.winapi) ?*anyopaque;
+
+pub extern "gdi32" fn BitBlt(
+    hdc: ?HDC,
+    x: i32,
+    y: i32,
+    cx: i32,
+    cy: i32,
+    hdcSrc: ?HDC,
+    x1: i32,
+    y1: i32,
+    rop: u32,
+) callconv(.winapi) i32;
+
+pub const SRCCOPY: u32 = 0x00CC0020;
+
+pub const BITMAPINFOHEADER = extern struct {
+    biSize: u32,
+    biWidth: i32,
+    biHeight: i32,
+    biPlanes: u16,
+    biBitCount: u16,
+    biCompression: u32,
+    biSizeImage: u32,
+    biXPelsPerMeter: i32,
+    biYPelsPerMeter: i32,
+    biClrUsed: u32,
+    biClrImportant: u32,
+};
+
+pub const RGBQUAD = extern struct {
+    rgbBlue: u8,
+    rgbGreen: u8,
+    rgbRed: u8,
+    rgbReserved: u8,
+};
+
+pub const BITMAPINFO = extern struct {
+    bmiHeader: BITMAPINFOHEADER,
+    bmiColors: [1]RGBQUAD,
+};
+
+pub const BI_RGB: u32 = 0;
+pub const DIB_RGB_COLORS: u32 = 0;
+
+pub extern "gdi32" fn GetDIBits(
+    hdc: ?HDC,
+    hbm: ?*anyopaque,
+    start: u32,
+    cLines: u32,
+    lpvBits: ?*anyopaque,
+    lpbmi: *BITMAPINFO,
+    usage: u32,
+) callconv(.winapi) i32;

@@ -92,9 +92,10 @@ pub fn printHelp() void {
         \\  windotool window focus --title "Chrome"
         \\  windotool key ctrl+c
         \\  windotool screenshot output.png
+        \\  windotool --json mouse pos
         \\
         \\Usage:
-        \\  windotool [command]
+        \\  windotool [flags] [command]
         \\
         \\Available Commands:
         \\  mouse       Control mouse movement, clicks, and scrolling
@@ -115,6 +116,7 @@ pub fn printHelp() void {
         \\Flags:
         \\  -h, --help     Display help for windotool
         \\  -v, --version  Display version information
+        \\  --json         Output results in JSON format (for AI agents)
         \\
         \\Use "windotool [command] --help" for more information about a command.
         \\

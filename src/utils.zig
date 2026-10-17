@@ -1,6 +1,7 @@
 const std = @import("std");
 const win = @import("utils/windows.zig");
 const cli = @import("utils/cli.zig");
+const json_output = @import("utils/json_output.zig");
 const app_cmd = @import("commands/app.zig");
 const window_cmd = @import("commands/window.zig");
 const mouse_cmd = @import("commands/mouse.zig");
@@ -452,18 +453,45 @@ pub fn executeBatch(allocator: std.mem.Allocator, input: []const u8) anyerror!vo
     std.debug.print("Batch execution completed successfully.\n", .{});
 }
 
+// Helper function to check if --json flag is present and remove it from args
+fn extractJsonFlag(args: []const []const u8, allocator: std.mem.Allocator) !struct { enabled: bool, filtered_args: [][]const u8 } {
+    var json_enabled = false;
+    var filtered: std.ArrayList([]const u8) = .empty;
+    defer filtered.deinit(allocator);
+    
+    for (args) |arg| {
+        if (std.mem.eql(u8, arg, "--json")) {
+            json_enabled = true;
+        } else {
+            try filtered.append(allocator, arg);
+        }
+    }
+    
+    return .{
+        .enabled = json_enabled,
+        .filtered_args = try filtered.toOwnedSlice(allocator),
+    };
+}
+
 pub fn executeCommand(allocator: std.mem.Allocator, args: []const []const u8) anyerror!void {
-    if (args.len == 0) {
+    // Extract --json flag if present
+    const flag_result = try extractJsonFlag(args, allocator);
+    defer allocator.free(flag_result.filtered_args);
+    
+    const json_writer = json_output.JsonWriter.init(allocator, flag_result.enabled);
+    const filtered_args = flag_result.filtered_args;
+    
+    if (filtered_args.len == 0) {
         cli.printHelp();
         return;
     }
 
-    const group = args[0];
+    const group = filtered_args[0];
 
     // Handle help flags
     if (std.mem.eql(u8, group, "help") or std.mem.eql(u8, group, "--help") or std.mem.eql(u8, group, "-h")) {
-        if (args.len >= 2) {
-            const cmd = args[1];
+        if (filtered_args.len >= 2) {
+            const cmd = filtered_args[1];
             if (std.mem.eql(u8, cmd, "mouse")) {
                 cli.printMouseHelp();
             } else if (std.mem.eql(u8, cmd, "window")) {
@@ -498,11 +526,11 @@ pub fn executeCommand(allocator: std.mem.Allocator, args: []const []const u8) an
     }
 
     if (std.mem.eql(u8, group, "mouse")) {
-        if (args.len < 2) {
+        if (filtered_args.len < 2) {
             cli.printMouseHelp();
             return;
         }
-        const action = args[1];
+        const action = filtered_args[1];
 
         // Check for help
         if (std.mem.eql(u8, action, "--help") or std.mem.eql(u8, action, "-h")) {
@@ -511,54 +539,101 @@ pub fn executeCommand(allocator: std.mem.Allocator, args: []const []const u8) an
         }
 
         if (std.mem.eql(u8, action, "move")) {
-            if (args.len < 4) {
-                std.debug.print("Error: 'move' requires x and y coordinates\n", .{});
-                std.debug.print("Usage: windotool mouse move <x> <y>\n\n", .{});
-                cli.printMouseHelp();
+            if (filtered_args.len < 4) {
+                if (json_writer.isEnabled()) {
+                    try json_writer.writeError("'move' requires x and y coordinates", "MISSING_ARGUMENTS");
+                } else {
+                    std.debug.print("Error: 'move' requires x and y coordinates\n", .{});
+                    std.debug.print("Usage: windotool mouse move <x> <y>\n\n", .{});
+                    cli.printMouseHelp();
+                }
                 return;
             }
-            const x = std.fmt.parseInt(i32, args[2], 10) catch |err| {
-                std.debug.print("Error: invalid x coordinate '{s}': {any}\n", .{ args[2], err });
+            const x = std.fmt.parseInt(i32, filtered_args[2], 10) catch |err| {
+                if (json_writer.isEnabled()) {
+                    var buf: [256]u8 = undefined;
+                    const msg = try std.fmt.bufPrint(&buf, "Invalid x coordinate '{s}'", .{filtered_args[2]});
+                    try json_writer.writeError(msg, "INVALID_COORDINATE");
+                } else {
+                    std.debug.print("Error: invalid x coordinate '{s}': {any}\n", .{ filtered_args[2], err });
+                }
                 return;
             };
-            const y = std.fmt.parseInt(i32, args[3], 10) catch |err| {
-                std.debug.print("Error: invalid y coordinate '{s}': {any}\n", .{ args[3], err });
+            const y = std.fmt.parseInt(i32, filtered_args[3], 10) catch |err| {
+                if (json_writer.isEnabled()) {
+                    var buf: [256]u8 = undefined;
+                    const msg = try std.fmt.bufPrint(&buf, "Invalid y coordinate '{s}'", .{filtered_args[3]});
+                    try json_writer.writeError(msg, "INVALID_COORDINATE");
+                } else {
+                    std.debug.print("Error: invalid y coordinate '{s}': {any}\n", .{ filtered_args[3], err });
+                }
                 return;
             };
             mouse_cmd.mouseMove(x, y) catch |err| {
-                std.debug.print("Error: failed to move mouse: {any}\n", .{err});
+                if (json_writer.isEnabled()) {
+                    try json_writer.writeError("Failed to move mouse", "MOVE_FAILED");
+                } else {
+                    std.debug.print("Error: failed to move mouse: {any}\n", .{err});
+                }
                 return;
             };
+            if (json_writer.isEnabled()) {
+                try json_writer.writeSuccess(.{ .message = "Mouse moved successfully", .x = x, .y = y });
+            }
         } else if (std.mem.eql(u8, action, "click")) {
-            const button = if (args.len >= 3) args[2] else "left";
+            const button = if (filtered_args.len >= 3) filtered_args[2] else "left";
             mouse_cmd.mouseClick(button);
+            if (json_writer.isEnabled()) {
+                try json_writer.writeSuccess(.{ .message = "Mouse clicked", .button = button });
+            }
         } else if (std.mem.eql(u8, action, "scroll")) {
-            if (args.len < 3) {
-                std.debug.print("Error: 'scroll' requires delta value\n", .{});
-                std.debug.print("Usage: windotool mouse scroll <delta>\n\n", .{});
-                cli.printMouseHelp();
+            if (filtered_args.len < 3) {
+                if (json_writer.isEnabled()) {
+                    try json_writer.writeError("'scroll' requires delta value", "MISSING_ARGUMENTS");
+                } else {
+                    std.debug.print("Error: 'scroll' requires delta value\n", .{});
+                    std.debug.print("Usage: windotool mouse scroll <delta>\n\n", .{});
+                    cli.printMouseHelp();
+                }
                 return;
             }
-            const delta = std.fmt.parseInt(i32, args[2], 10) catch |err| {
-                std.debug.print("Error: invalid scroll delta '{s}': {any}\n", .{ args[2], err });
+            const delta = std.fmt.parseInt(i32, filtered_args[2], 10) catch |err| {
+                if (json_writer.isEnabled()) {
+                    var buf: [256]u8 = undefined;
+                    const msg = try std.fmt.bufPrint(&buf, "Invalid scroll delta '{s}'", .{filtered_args[2]});
+                    try json_writer.writeError(msg, "INVALID_DELTA");
+                } else {
+                    std.debug.print("Error: invalid scroll delta '{s}': {any}\n", .{ filtered_args[2], err });
+                }
                 return;
             };
             mouse_cmd.mouseScroll(delta);
+            if (json_writer.isEnabled()) {
+                try json_writer.writeSuccess(.{ .message = "Mouse scrolled", .delta = delta });
+            }
         } else if (std.mem.eql(u8, action, "pos") or std.mem.eql(u8, action, "getpos")) {
             const pos = mouse_cmd.mouseGetPos() catch |err| {
-                std.debug.print("Error: failed to get cursor position: {any}\n", .{err});
+                if (json_writer.isEnabled()) {
+                    try json_writer.writeError("Failed to get cursor position", "GET_POS_FAILED");
+                } else {
+                    std.debug.print("Error: failed to get cursor position: {any}\n", .{err});
+                }
                 return;
             };
-            std.debug.print("Cursor position: x={d}, y={d}\n", .{ pos.x, pos.y });
+            if (json_writer.isEnabled()) {
+                try json_writer.writeSuccess(.{ .x = pos.x, .y = pos.y });
+            } else {
+                std.debug.print("Cursor position: x={d}, y={d}\n", .{ pos.x, pos.y });
+            }
         } else {
             try cli.printActionError(allocator, "mouse", action, &MOUSE_ACTIONS);
         }
     } else if (std.mem.eql(u8, group, "app")) {
-        if (args.len < 2) {
+        if (filtered_args.len < 2) {
             cli.printAppHelp();
             return;
         }
-        const action = args[1];
+        const action = filtered_args[1];
 
         if (std.mem.eql(u8, action, "--help") or std.mem.eql(u8, action, "-h")) {
             cli.printAppHelp();
@@ -566,36 +641,66 @@ pub fn executeCommand(allocator: std.mem.Allocator, args: []const []const u8) an
         }
 
         if (std.mem.eql(u8, action, "open")) {
-            if (args.len < 3) {
-                std.debug.print("Error: 'open' requires application name or path\n", .{});
-                std.debug.print("Usage: windotool app open <app-name>\n\n", .{});
-                cli.printAppHelp();
+            if (filtered_args.len < 3) {
+                if (json_writer.isEnabled()) {
+                    try json_writer.writeError("'open' requires application name or path", "MISSING_ARGUMENTS");
+                } else {
+                    std.debug.print("Error: 'open' requires application name or path\n", .{});
+                    std.debug.print("Usage: windotool app open <app-name>\n\n", .{});
+                    cli.printAppHelp();
+                }
                 return;
             }
-            app_cmd.openApp(allocator, args[2]) catch |err| {
-                std.debug.print("Error: failed to open application: {any}\n", .{err});
+            app_cmd.openApp(allocator, filtered_args[2]) catch |err| {
+                if (json_writer.isEnabled()) {
+                    try json_writer.writeError("Failed to open application", "OPEN_FAILED");
+                } else {
+                    std.debug.print("Error: failed to open application: {any}\n", .{err});
+                }
                 return;
             };
+            if (json_writer.isEnabled()) {
+                try json_writer.writeSuccess(.{ .message = "Application opened successfully", .app = filtered_args[2] });
+            }
         } else if (std.mem.eql(u8, action, "close")) {
-            if (args.len < 3) {
-                std.debug.print("Error: 'close' requires application name\n", .{});
-                std.debug.print("Usage: windotool app close <app-name>\n\n", .{});
-                cli.printAppHelp();
+            if (filtered_args.len < 3) {
+                if (json_writer.isEnabled()) {
+                    try json_writer.writeError("'close' requires application name", "MISSING_ARGUMENTS");
+                } else {
+                    std.debug.print("Error: 'close' requires application name\n", .{});
+                    std.debug.print("Usage: windotool app close <app-name>\n\n", .{});
+                    cli.printAppHelp();
+                }
                 return;
             }
-            app_cmd.closeApp(allocator, args[2]) catch |err| {
-                std.debug.print("Error: failed to close application: {any}\n", .{err});
+            app_cmd.closeApp(allocator, filtered_args[2]) catch |err| {
+                if (json_writer.isEnabled()) {
+                    try json_writer.writeError("Failed to close application", "CLOSE_FAILED");
+                } else {
+                    std.debug.print("Error: failed to close application: {any}\n", .{err});
+                }
                 return;
             };
+            if (json_writer.isEnabled()) {
+                try json_writer.writeSuccess(.{ .message = "Application closed successfully", .app = filtered_args[2] });
+            }
         } else if (std.mem.eql(u8, action, "list")) {
-            if (args.len >= 3 and std.mem.eql(u8, args[2], "--running")) {
+            if (filtered_args.len >= 3 and std.mem.eql(u8, filtered_args[2], "--running")) {
                 app_cmd.listRunningApps(allocator) catch |err| {
-                    std.debug.print("Error: failed to list running apps: {any}\n", .{err});
+                    if (json_writer.isEnabled()) {
+                        try json_writer.writeError("Failed to list running apps", "LIST_FAILED");
+                    } else {
+                        std.debug.print("Error: failed to list running apps: {any}\n", .{err});
+                    }
                     return;
                 };
             } else {
                 app_cmd.listInstalledApps(allocator) catch |err| {
-                    std.debug.print("Error: failed to list installed apps: {any}\n", .{err});
+                    if (json_writer.isEnabled()) {
+                        try json_writer.writeError("Failed to list installed apps", "LIST_FAILED");
+                    } else {
+                        std.debug.print("Error: failed to list installed apps: {any}\n", .{err});
+                    }
                     return;
                 };
             }
@@ -959,16 +1064,33 @@ pub fn executeCommand(allocator: std.mem.Allocator, args: []const []const u8) an
             return;
         };
     } else if (std.mem.eql(u8, group, "batch") or std.mem.eql(u8, group, "json") or std.mem.eql(u8, group, "run")) {
-        if (args.len < 2) {
-            std.debug.print("Error: batch command requires JSON file or content\n", .{});
-            std.debug.print("Usage: windotool batch <file.json | '[\"command1\", ...]'>\n", .{});
+        if (filtered_args.len < 2) {
+            if (json_writer.isEnabled()) {
+                try json_writer.writeError("batch command requires JSON file or content", "MISSING_ARGUMENTS");
+            } else {
+                std.debug.print("Error: batch command requires JSON file or content\n", .{});
+                std.debug.print("Usage: windotool batch <file.json | '[\"command1\", ...]'>\n", .{});
+            }
             return;
         }
-        executeBatch(allocator, args[1]) catch |err| {
-            std.debug.print("Error: failed to execute batch: {any}\n", .{err});
+        executeBatch(allocator, filtered_args[1]) catch |err| {
+            if (json_writer.isEnabled()) {
+                try json_writer.writeError("Failed to execute batch", "BATCH_FAILED");
+            } else {
+                std.debug.print("Error: failed to execute batch: {any}\n", .{err});
+            }
             return;
         };
+        if (json_writer.isEnabled()) {
+            try json_writer.writeSuccess(.{ .message = "Batch executed successfully" });
+        }
     } else {
-        try cli.printCommandError(allocator, group, &VALID_COMMANDS);
+        if (json_writer.isEnabled()) {
+            var buf: [256]u8 = undefined;
+            const msg = try std.fmt.bufPrint(&buf, "Unknown command '{s}'", .{group});
+            try json_writer.writeError(msg, "UNKNOWN_COMMAND");
+        } else {
+            try cli.printCommandError(allocator, group, &VALID_COMMANDS);
+        }
     }
 }
